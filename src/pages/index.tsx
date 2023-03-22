@@ -28,7 +28,9 @@ const WalletMultiButtonDynamic = dynamic(
 
 const Home: NextPage = () => {
     let [lamports, setLamports] = useState(0.1);
-    let [wallet, setWallet] = useState('9f8yuZXmhuv537m4PvLStyWJDFHz32uXUQZLA8WEz99x');
+    // let [wallet, setWallet] = useState('9f8yuZXmhuv537m4PvLStyWJDFHz32uXUQZLA8WEz99x');
+    const [walletAddress, setWalletAddress] = useState('');
+    const [error, setError] = useState(false);
 
     const [selectedOption, setSelectedOption] = useState('');
 
@@ -38,6 +40,19 @@ const Home: NextPage = () => {
 
     const { connection } = useConnection();
     // const connection = new Connection(clusterApiUrl("devnet"))
+
+    const handleAddressChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const address = event.target.value.trim();
+        setWalletAddress(address);
+        // Check if address is valid
+        try {
+            new PublicKey(address);
+            setError(false);
+        } catch {
+            // Set error state only if input length is not zero
+            setError(address.length > 0);
+        }
+    };
 
     const { publicKey, sendTransaction } = useWallet();
 
@@ -129,6 +144,10 @@ const Home: NextPage = () => {
                                 InputProps={{ style: { fontSize: '1.2rem', fontWeight: 'bold' } }}
                                 InputLabelProps={{ style: { fontSize: '1.2rem', fontWeight: 'bold' } }}
                                 style={{ marginBottom: '2rem' }}
+                                value={walletAddress}
+                                onChange={handleAddressChange}
+                                error={error}
+                                helperText={error ? 'Not a valid Solana address' : ''}
                             />
 
                             <FormControl
