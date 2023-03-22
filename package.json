@@ -33,6 +33,10 @@
         "lint": "prettier --check 'src/{*,**/*}.{ts,tsx,js,jsx,json}' && eslint && next lint"
     },
     "dependencies": {
+        "@emotion/react": "^11.10.6",
+        "@emotion/styled": "^11.10.6",
+        "@mui/icons-material": "^5.11.11",
+        "@mui/material": "^5.11.14",
         "@solana/wallet-adapter-base": "workspace:^",
         "@solana/wallet-adapter-react": "workspace:^0.15.30",
         "@solana/wallet-adapter-react-ui": "workspace:^0.9.29",
