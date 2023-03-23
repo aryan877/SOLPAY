@@ -35,11 +35,16 @@ const WalletMultiButtonDynamic = dynamic(
     { ssr: false }
 );
 
+interface TokenAccount {
+    mintAddress: string;
+    tokenBalance: number;
+}
+
 const Home: NextPage = () => {
     let [lamports, setLamports] = useState(0.1);
     const [walletAddress, setWalletAddress] = useState('');
     const [error, setError] = useState(false);
-
+    const [tokenAccounts, setTokenAccounts] = useState<TokenAccount[]>([]);
     const [selectedOption, setSelectedOption] = useState('');
 
     const handleChange = (event: any) => {
@@ -78,25 +83,29 @@ const Home: NextPage = () => {
                 TOKEN_PROGRAM_ID, //new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
                 { filters: filters }
             );
-            console.log(accounts);
 
-            accounts.forEach(async (account, i) => {
-                //Parse the account data
-                const parsedAccountInfo: any = account.account.data;
-                const mintAddress: string = parsedAccountInfo['parsed']['info']['mint'];
-                const tokenBalance: number = parsedAccountInfo['parsed']['info']['tokenAmount']['uiAmount'];
-                // console.log(`Token Account No. ${i + 1}: ${account.pubkey.toString()}`);
-                // console.log(`--Token Balance: ${tokenBalance}`);
-                // console.log(`--Mint Address: ${mintAddress}`);
-                let mintPubkey = new PublicKey(mintAddress);
-                let tokenmetaPubkey = await Metadata.getPDA(mintPubkey);
-                const tokenmeta = await Metadata.load(connection, tokenmetaPubkey);
-                console.log(tokenmeta);
-                // try {
-                // } catch (error) {
-                //     console.error(error);
-                // }
-            });
+            const tokenAccounts: TokenAccount[] = []; // Create empty array to store token accounts
+
+            const parsedAccounts = await Promise.all(
+                accounts.map(async (account) => {
+                    try {
+                        const parsedAccountInfo: any = account.account.data;
+                        const mintAddress: string = parsedAccountInfo['parsed']['info']['mint'];
+                        const tokenBalance: number = parsedAccountInfo['parsed']['info']['tokenAmount']['uiAmount'];
+                        const data = await connection.getAccountInfo(new PublicKey(mintAddress));
+                        // console.log(data);
+                        return {
+                            mintAddress,
+                            tokenBalance,
+                        };
+                    } catch (error) {
+                        console.error(error);
+                    }
+                })
+            );
+            // Filter out any failed parsing attempts and push to the tokenAccounts array
+            const filteredAccounts = parsedAccounts.filter((account) => account) as TokenAccount[];
+            setTokenAccounts([...tokenAccounts, ...filteredAccounts]);
         }
         getTokenAccounts(publicKey.toString(), connection);
     }, [publicKey, connection]);
@@ -200,15 +209,15 @@ const Home: NextPage = () => {
                                     onChange={handleChange}
                                     style={{ fontSize: '1.2rem', fontWeight: 'bold' }}
                                 >
-                                    <MenuItem value={10} style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-                                        Ten
-                                    </MenuItem>
-                                    <MenuItem value={20} style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-                                        Twenty
-                                    </MenuItem>
-                                    <MenuItem value={30} style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-                                        Thirty
-                                    </MenuItem>
+                                    {tokenAccounts.map((account) => (
+                                        <MenuItem
+                                            key={account.mintAddress}
+                                            value={account.mintAddress}
+                                            style={{ fontSize: '1.2rem', fontWeight: 'bold' }}
+                                        >
+                                            {`${account.mintAddress} - ${account.tokenBalance}`}
+                                        </MenuItem>
+                                    ))}
                                 </Select>
                             </FormControl>
 

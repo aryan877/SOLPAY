@@ -49,7 +49,7 @@ const App: FC<AppProps> = ({ Component, pageProps }) => {
 
     // You can also provide a custom RPC endpoint
     const endpoint = useMemo(() => clusterApiUrl(network), [network]);
-
+    // https://api.mainnet-beta.solana.com
     const wallets = useMemo(
         () => [
             new LedgerWalletAdapter(),
