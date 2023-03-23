@@ -1,6 +1,4 @@
-import DeleteIcon from '@mui/icons-material/Delete';
-import MenuIcon from '@mui/icons-material/Menu';
-import SendIcon from '@mui/icons-material/Send';
+import { Metadata } from '@metaplex-foundation/mpl-token-metadata';
 import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import AppBar from '@mui/material/AppBar';
 import { default as Box } from '@mui/material/Box';
@@ -11,15 +9,26 @@ import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
 import Toolbar from '@mui/material/Toolbar';
 import { default as Typography } from '@mui/material/Typography';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { WalletAdapterNetwork, WalletNotConnectedError } from '@solana/wallet-adapter-base';
 import { ConnectionProvider, useConnection, useWallet, WalletProvider } from '@solana/wallet-adapter-react';
-import { clusterApiUrl, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import {
+    clusterApiUrl,
+    Connection,
+    GetProgramAccountsFilter,
+    Keypair,
+    LAMPORTS_PER_SOL,
+    PublicKey,
+    SystemProgram,
+    Transaction,
+} from '@solana/web3.js';
+import axios from 'axios';
 import type { NextPage } from 'next';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import Image from 'next/image';
-import React, { FC, ReactNode, useCallback, useMemo, useState } from 'react';
-import hstyles from '../styles/Home.module.css';
+import React, { FC, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { default as hstyles } from '../styles/Home.module.css';
 
 const WalletMultiButtonDynamic = dynamic(
     async () => (await import('@solana/wallet-adapter-react-ui')).WalletMultiButton,
@@ -28,7 +37,6 @@ const WalletMultiButtonDynamic = dynamic(
 
 const Home: NextPage = () => {
     let [lamports, setLamports] = useState(0.1);
-    // let [wallet, setWallet] = useState('9f8yuZXmhuv537m4PvLStyWJDFHz32uXUQZLA8WEz99x');
     const [walletAddress, setWalletAddress] = useState('');
     const [error, setError] = useState(false);
 
@@ -40,11 +48,9 @@ const Home: NextPage = () => {
 
     const { connection } = useConnection();
     // const connection = new Connection(clusterApiUrl("devnet"))
-
     const handleAddressChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const address = event.target.value.trim();
         setWalletAddress(address);
-        // Check if address is valid
         try {
             new PublicKey(address);
             setError(false);
@@ -53,8 +59,47 @@ const Home: NextPage = () => {
             setError(address.length > 0);
         }
     };
-
     const { publicKey, sendTransaction } = useWallet();
+    useEffect(() => {
+        if (!publicKey) return;
+        async function getTokenAccounts(wallet: string, solanaConnection: Connection) {
+            const filters: GetProgramAccountsFilter[] = [
+                {
+                    dataSize: 165, //size of account (bytes)
+                },
+                {
+                    memcmp: {
+                        offset: 32, //location of our query in the account (bytes)
+                        bytes: wallet, //our search criteria, a base58 encoded string
+                    },
+                },
+            ];
+            const accounts = await solanaConnection.getParsedProgramAccounts(
+                TOKEN_PROGRAM_ID, //new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+                { filters: filters }
+            );
+            console.log(accounts);
+
+            accounts.forEach(async (account, i) => {
+                //Parse the account data
+                const parsedAccountInfo: any = account.account.data;
+                const mintAddress: string = parsedAccountInfo['parsed']['info']['mint'];
+                const tokenBalance: number = parsedAccountInfo['parsed']['info']['tokenAmount']['uiAmount'];
+                // console.log(`Token Account No. ${i + 1}: ${account.pubkey.toString()}`);
+                // console.log(`--Token Balance: ${tokenBalance}`);
+                // console.log(`--Mint Address: ${mintAddress}`);
+                let mintPubkey = new PublicKey(mintAddress);
+                let tokenmetaPubkey = await Metadata.getPDA(mintPubkey);
+                const tokenmeta = await Metadata.load(connection, tokenmetaPubkey);
+                console.log(tokenmeta);
+                // try {
+                // } catch (error) {
+                //     console.error(error);
+                // }
+            });
+        }
+        getTokenAccounts(publicKey.toString(), connection);
+    }, [publicKey, connection]);
 
     const onClick = useCallback(async () => {
         try {
@@ -86,20 +131,6 @@ const Home: NextPage = () => {
             // You can also display an error message on your React page using state or a library like React Toastify
         }
     }, [connection, publicKey, sendTransaction]);
-
-    // [publicKey, sendTransaction, connection]
-
-    // function setTheLamports(e: any)
-    // {
-    //     console.log(Number(e.target.value));
-    //     setLamports(Number(e.target.value));
-    //     lamports = e.target.value;
-    //     thelamports = lamports;
-    // }
-    // function setTheWallet(e: any){
-    //     setWallet(e.target.value)
-    //     theWallet = e.target.value;
-    // }
 
     return (
         <>
@@ -148,6 +179,7 @@ const Home: NextPage = () => {
                                 onChange={handleAddressChange}
                                 error={error}
                                 helperText={error ? 'Not a valid Solana address' : ''}
+                                autoComplete="off"
                             />
 
                             <FormControl
@@ -188,6 +220,7 @@ const Home: NextPage = () => {
                                 InputProps={{ style: { fontSize: '1.2rem', fontWeight: 'bold' } }}
                                 InputLabelProps={{ style: { fontSize: '1.2rem', fontWeight: 'bold' } }}
                                 style={{ marginBottom: '2rem' }}
+                                autoComplete="off"
                             />
 
                             <Button

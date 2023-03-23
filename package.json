@@ -35,12 +35,15 @@
     "dependencies": {
         "@emotion/react": "^11.10.6",
         "@emotion/styled": "^11.10.6",
-        "@mui/icons-material": "^5.11.11",
+        "@metaplex-foundation/mpl-token-metadata": "^1.2",
         "@mui/material": "^5.11.14",
+        "@solana/spl-token": "^0.3.7",
+        "@solana/spl-token-registry": "^0.2.4574",
         "@solana/wallet-adapter-base": "workspace:^",
         "@solana/wallet-adapter-react": "workspace:^0.15.30",
         "@solana/wallet-adapter-react-ui": "workspace:^0.9.29",
         "@solana/wallet-adapter-wallets": "^0.19.15",
+        "@solana/web3.js": "^1.74.0",
         "next": "^12.3.4",
         "react": "^18.2.0",
         "react-dom": "^18.2.0"
