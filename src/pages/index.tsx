@@ -1,5 +1,4 @@
-import { Metadata } from '@metaplex-foundation/mpl-token-metadata';
-import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+import { Avatar, FormControl, InputLabel, ListItemIcon, MenuItem, Select } from '@mui/material';
 import AppBar from '@mui/material/AppBar';
 import { default as Box } from '@mui/material/Box';
 import { default as Button } from '@mui/material/Button';
@@ -10,6 +9,7 @@ import TextField from '@mui/material/TextField';
 import Toolbar from '@mui/material/Toolbar';
 import { default as Typography } from '@mui/material/Typography';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { Strategy, TokenInfo, TokenInfoMap, TokenListContainer, TokenListProvider } from '@solana/spl-token-registry';
 import { WalletAdapterNetwork, WalletNotConnectedError } from '@solana/wallet-adapter-base';
 import { ConnectionProvider, useConnection, useWallet, WalletProvider } from '@solana/wallet-adapter-react';
 import {
@@ -38,6 +38,7 @@ const WalletMultiButtonDynamic = dynamic(
 interface TokenAccount {
     mintAddress: string;
     tokenBalance: number;
+    decimals: number;
 }
 
 const Home: NextPage = () => {
@@ -65,9 +66,19 @@ const Home: NextPage = () => {
         }
     };
     const { publicKey, sendTransaction } = useWallet();
+
     useEffect(() => {
         if (!publicKey) return;
-        async function getTokenAccounts(wallet: string, solanaConnection: Connection) {
+        async function getTokenAccounts(wallet: string, connection: Connection) {
+            if (publicKey) {
+                connection.getBalance(publicKey).then((bal) => {
+                    const solBalance = { mintAddress: 'SOL', tokenBalance: bal / LAMPORTS_PER_SOL, decimals: 9 };
+                    setTokenAccounts([solBalance]);
+                });
+            }
+            const provider = new TokenListProvider();
+            const tokenList = await provider.resolve();
+
             const filters: GetProgramAccountsFilter[] = [
                 {
                     dataSize: 165, //size of account (bytes)
@@ -79,36 +90,52 @@ const Home: NextPage = () => {
                     },
                 },
             ];
-            const accounts = await solanaConnection.getParsedProgramAccounts(
+            const accounts = await connection.getParsedProgramAccounts(
                 TOKEN_PROGRAM_ID, //new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
                 { filters: filters }
             );
-
-            const tokenAccounts: TokenAccount[] = []; // Create empty array to store token accounts
-
+            console.log(accounts);
             const parsedAccounts = await Promise.all(
                 accounts.map(async (account) => {
                     try {
                         const parsedAccountInfo: any = account.account.data;
                         const mintAddress: string = parsedAccountInfo['parsed']['info']['mint'];
                         const tokenBalance: number = parsedAccountInfo['parsed']['info']['tokenAmount']['uiAmount'];
-                        const data = await connection.getAccountInfo(new PublicKey(mintAddress));
+                        const decimals: number = parsedAccountInfo['parsed']['info']['tokenAmount']['decimals'];
+                        // const data = await connection.getAccountInfo(new PublicKey(mintAddress));
                         // console.log(data);
+                        // console.log(data);
+
+                        const tokenInfo: TokenInfo | undefined = tokenList
+                            .filterByClusterSlug('devnet')
+                            .getList()
+                            .find((info: TokenInfo) => info.address === mintAddress);
+
+                        if (tokenInfo) {
+                            console.log(tokenInfo);
+                        } else {
+                            console.log('Token info not found');
+                        }
+
                         return {
                             mintAddress,
                             tokenBalance,
+                            decimals,
                         };
                     } catch (error) {
                         console.error(error);
                     }
                 })
             );
-            // Filter out any failed parsing attempts and push to the tokenAccounts array
             const filteredAccounts = parsedAccounts.filter((account) => account) as TokenAccount[];
-            setTokenAccounts([...tokenAccounts, ...filteredAccounts]);
+            setTokenAccounts((prevTokenAccounts) => [...prevTokenAccounts, ...filteredAccounts]);
         }
         getTokenAccounts(publicKey.toString(), connection);
     }, [publicKey, connection]);
+
+    useEffect(() => {
+        console.log(tokenAccounts);
+    }, [tokenAccounts]);
 
     const onClick = useCallback(async () => {
         try {
@@ -128,12 +155,11 @@ const Home: NextPage = () => {
             const signature = await sendTransaction(transaction, connection);
             console.log(signature);
             const latestBlockHash = await connection.getLatestBlockhash();
-            const confirm = await connection.confirmTransaction({
+            await connection.confirmTransaction({
                 blockhash: latestBlockHash.blockhash,
                 lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
                 signature: signature,
             });
-            console.log(confirm);
         } catch (error) {
             // Handle errors here
             console.error('Transaction failed:', error);
@@ -215,6 +241,14 @@ const Home: NextPage = () => {
                                             value={account.mintAddress}
                                             style={{ fontSize: '1.2rem', fontWeight: 'bold' }}
                                         >
+                                            <ListItemIcon>
+                                                <Avatar
+                                                    src={
+                                                        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU/logo.png'
+                                                    }
+                                                    alt={''}
+                                                />
+                                            </ListItemIcon>
                                             {`${account.mintAddress} - ${account.tokenBalance}`}
                                         </MenuItem>
                                     ))}
