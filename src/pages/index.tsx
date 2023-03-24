@@ -48,7 +48,7 @@ import type { NextPage } from 'next';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import Image from 'next/image';
-import React, { FC, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { FC, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { default as hstyles } from '../styles/Home.module.css';
 
 const WalletMultiButtonDynamic = dynamic(
@@ -73,17 +73,17 @@ type StatusType = {
     message: string;
 };
 
-const style = {
-    position: 'absolute' as 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: 400,
-    bgcolor: 'background.paper',
-    border: '2px solid #000',
-    boxShadow: 24,
-    p: 4,
-};
+// const style = {
+//     position: 'absolute' as 'absolute',
+//     top: '50%',
+//     left: '50%',
+//     transform: 'translate(-50%, -50%)',
+//     width: 400,
+//     bgcolor: 'background.paper',
+//     border: '2px solid #000',
+//     boxShadow: 24,
+//     p: 4,
+// };
 
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(props, ref) {
     return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -126,13 +126,23 @@ const Home: NextPage = () => {
         };
     }, [status]);
 
+    // useEffect(() => {
+    //     if (publicKey && publicKey.toBase58() === walletAddress) {
+    //         setWalletError('Cannot send to the same wallet');
+    //     } else {
+    //         setWalletError('');
+    //     }
+    // }, [publicKey, walletAddress]);
+
+    const walletAddressRef = useRef<HTMLInputElement>(null);
+
     useEffect(() => {
-        if (publicKey && publicKey.toBase58() === walletAddress) {
+        if (publicKey && publicKey.toBase58() === walletAddressRef?.current?.value) {
             setWalletError('Cannot send to the same wallet');
         } else {
             setWalletError('');
         }
-    }, [publicKey, walletAddress]);
+    }, [publicKey]);
 
     useEffect(() => {
         if (!publicKey) return;
@@ -521,6 +531,7 @@ const Home: NextPage = () => {
                                 error={walletError.length > 0}
                                 helperText={walletError}
                                 autoComplete="off"
+                                inputRef={walletAddressRef}
                             />
 
                             <FormControl
