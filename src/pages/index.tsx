@@ -104,20 +104,25 @@ const Home: NextPage = () => {
     });
     const [amount, setAmount] = useState<string>('0');
     const [amountError, setAmountError] = useState<boolean>(false);
-    const [selectedTokenChange, setSelectedTokenChange] = useState(false);
     const [signature, setSignature] = useState<string>('');
     const [open, setOpen] = useState<boolean>(false);
 
     const { publicKey, sendTransaction } = useWallet();
     const { connection } = useConnection();
 
+    const walletAddressRef = useRef<HTMLInputElement>(null);
+    const amountRef = useRef<HTMLInputElement>(null);
+
     useEffect(() => {
-        if (!selectedTokenChange) return;
+        const amt = amountRef?.current?.value;
         if (!selectedToken.mintAddress) return;
-        const isAmountLessThanBalance = parseFloat(amount) > 0 && parseFloat(amount) <= selectedToken.tokenBalance;
+        if (!amt) {
+            return;
+        }
+        console.log(selectedToken.tokenBalance, amt);
+        const isAmountLessThanBalance = parseFloat(amt) > 0 && parseFloat(amt) <= selectedToken.tokenBalance;
         setAmountError(!isAmountLessThanBalance);
-        setSelectedTokenChange(false);
-    }, [selectedToken, amount, selectedTokenChange]);
+    }, [selectedToken, publicKey]);
 
     useEffect(() => {
         setOpen(true);
@@ -125,16 +130,6 @@ const Home: NextPage = () => {
             setOpen(false);
         };
     }, [status]);
-
-    // useEffect(() => {
-    //     if (publicKey && publicKey.toBase58() === walletAddress) {
-    //         setWalletError('Cannot send to the same wallet');
-    //     } else {
-    //         setWalletError('');
-    //     }
-    // }, [publicKey, walletAddress]);
-
-    const walletAddressRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (publicKey && publicKey.toBase58() === walletAddressRef?.current?.value) {
@@ -227,7 +222,6 @@ const Home: NextPage = () => {
     }, [publicKey, connection, signature]);
 
     const handleChange = (event: SelectChangeEvent<string>, child: React.ReactNode) => {
-        setSelectedTokenChange(true);
         setSelectedOption(event.target.value as string);
         const token = tokenAccounts.find((token) => token.mintAddress === event.target.value);
         setSelectedToken(token || { mintAddress: '', symbol: '', tokenBalance: 0, uri: '', decimals: 9 });
@@ -598,6 +592,7 @@ const Home: NextPage = () => {
                                 error={amountError}
                                 helperText={amountError ? 'Invalid Input' : ''}
                                 autoComplete="off"
+                                inputRef={amountRef}
                             />
 
                             <Button
