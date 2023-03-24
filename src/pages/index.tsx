@@ -1,6 +1,5 @@
 import { Metadata } from '@metaplex-foundation/mpl-token-metadata';
-import CodeIcon from '@mui/icons-material/Code';
-import LanTwoToneIcon from '@mui/icons-material/LanTwoTone';
+import CircleIcon from '@mui/icons-material/Circle';
 import {
     Avatar,
     Backdrop,
@@ -127,13 +126,13 @@ const Home: NextPage = () => {
         };
     }, [status]);
 
-    // useEffect(() => {
-    //     if (publicKey && publicKey.toBase58() === walletAddress) {
-    //         setWalletError('Cannot send to the same wallet');
-    //     } else {
-    //         setWalletError('');
-    //     }
-    // }, [publicKey, walletAddress]);
+    useEffect(() => {
+        if (publicKey && publicKey.toBase58() === walletAddress) {
+            setWalletError('Cannot send to the same wallet');
+        } else {
+            setWalletError('');
+        }
+    }, [publicKey, walletAddress]);
 
     useEffect(() => {
         if (!publicKey) return;
@@ -487,9 +486,9 @@ const Home: NextPage = () => {
                                 SOLPAY
                             </Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <LanTwoToneIcon style={{ marginRight: '1rem' }} />
+                                <CircleIcon style={{ marginRight: '0.4rem', color: '#a6e22e' }} />
                                 <Typography sx={{}} variant="h6" component="div">
-                                    Devnet Only
+                                    DEVNET ONLY
                                 </Typography>
                             </Box>
                             <WalletMultiButtonDynamic
