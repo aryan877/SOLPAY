@@ -248,6 +248,11 @@ const Home: NextPage = () => {
     const sendAndConfirmTransaction = async (transaction: any, connection: any) => {
         try {
             const signature = await sendTransaction(transaction, connection);
+            setStatus({
+                status: 'pending',
+                severity: 'info',
+                message: `Transaction sent for ID ${signature}!`,
+            });
             console.log('Transaction sent:', signature);
             const latestBlockHash = await connection.getLatestBlockhash();
             const confirmation = await connection.confirmTransaction({
@@ -519,7 +524,7 @@ const Home: NextPage = () => {
                         </Box>
                         {/* <div className={hstyles.grid}></div> */}
                     </main>
-                    <Snackbar open={open} autoHideDuration={5000} onClose={handleClose}>
+                    <Snackbar open={open} autoHideDuration={2000} onClose={handleClose}>
                         <div>
                             {status.status === 'error' && status.message && (
                                 <Alert
