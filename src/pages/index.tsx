@@ -1,17 +1,24 @@
-import { Avatar, FormControl, Grid, InputLabel, MenuItem, Select } from '@mui/material';
-import AppBar from '@mui/material/AppBar';
 import { Metadata } from '@metaplex-foundation/mpl-token-metadata';
+import CodeIcon from '@mui/icons-material/Code';
+import LanTwoToneIcon from '@mui/icons-material/LanTwoTone';
+import { Avatar, FormControl, Grid, InputLabel, MenuItem, Select, SelectChangeEvent } from '@mui/material';
+import MuiAlert, { AlertProps } from '@mui/material/Alert';
+import AppBar from '@mui/material/AppBar';
 import { default as Box } from '@mui/material/Box';
 import { default as Button } from '@mui/material/Button';
 import Container from '@mui/material/Container';
 import CssBaseline from '@mui/material/CssBaseline';
-import IconButton from '@mui/material/IconButton';
+import Snackbar from '@mui/material/Snackbar';
 import TextField from '@mui/material/TextField';
 import Toolbar from '@mui/material/Toolbar';
-import Snackbar from '@mui/material/Snackbar';
-import MuiAlert, { AlertProps } from '@mui/material/Alert';
 import { default as Typography } from '@mui/material/Typography';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import {
+    createAssociatedTokenAccountInstruction,
+    createTransferInstruction,
+    getAssociatedTokenAddress,
+    getOrCreateAssociatedTokenAccount,
+    TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import { Strategy, TokenInfo, TokenInfoMap, TokenListContainer, TokenListProvider } from '@solana/spl-token-registry';
 import { WalletAdapterNetwork, WalletNotConnectedError } from '@solana/wallet-adapter-base';
 import { ConnectionProvider, useConnection, useWallet, WalletProvider } from '@solana/wallet-adapter-react';
@@ -47,6 +54,7 @@ interface TokenAccount {
 }
 
 type SeverityType = 'error' | 'success' | 'info';
+const SOL = 'SOL';
 
 type StatusType = {
     severity: SeverityType;
@@ -54,10 +62,14 @@ type StatusType = {
     message: string;
 };
 
+const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(props, ref) {
+    return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
+});
+
 const Home: NextPage = () => {
-    const [status, setStatus] = useState<StatusType>({ severity: '', status: '', message: '' });
+    const [status, setStatus] = useState<StatusType>({ severity: 'success', status: 'success', message: '' });
     const [walletAddress, setWalletAddress] = useState<string>('');
-    const [walletError, setWalletError] = useState<boolean>(false);
+    const [walletError, setWalletError] = useState<string>('');
     const [tokenAccounts, setTokenAccounts] = useState<TokenAccount[]>([]);
     const [selectedOption, setSelectedOption] = useState<string>('');
     const [selectedToken, setSelectedToken] = useState<TokenAccount>({
@@ -67,13 +79,13 @@ const Home: NextPage = () => {
         uri: '',
         decimals: 9,
     });
-    const [amount, setAmount] = useState<number>(0);
+    const [amount, setAmount] = useState<string>('0');
     const [amountError, setAmountError] = useState<boolean>(false);
     const [selectedTokenChange, setSelectedTokenChange] = useState(false);
 
-    const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const handleChange = (event: SelectChangeEvent<string>, child: React.ReactNode) => {
         setSelectedTokenChange(true);
-        setSelectedOption(event.target.value);
+        setSelectedOption(event.target.value as string);
         const token = tokenAccounts.find((token) => token.mintAddress === event.target.value);
         setSelectedToken(token || { mintAddress: '', symbol: '', tokenBalance: 0, uri: '', decimals: 9 });
     };
@@ -100,7 +112,7 @@ const Home: NextPage = () => {
     useEffect(() => {
         if (!selectedTokenChange) return;
         if (!selectedToken.mintAddress) return;
-        const isAmountLessThanBalance = amount > 0 && parseFloat(amount) <= selectedToken.tokenBalance;
+        const isAmountLessThanBalance = parseFloat(amount) > 0 && parseFloat(amount) <= selectedToken.tokenBalance;
         setAmountError(!isAmountLessThanBalance);
         setSelectedTokenChange(false);
     }, [selectedToken, amount, selectedTokenChange]);
@@ -112,24 +124,23 @@ const Home: NextPage = () => {
         setWalletAddress(address);
         try {
             new PublicKey(address);
-            setWalletError(false);
+            setWalletError('');
         } catch {
             // Set error state only if input length is not zero
-            setWalletError(address.length > 0);
+            setWalletError(address.length > 0 ? 'Invalid wallet address' : '');
+        }
+
+        // Check if address matches publicKey
+        if (publicKey && publicKey.toBase58() === address) {
+            setWalletError('Cannot send to the same wallet');
         }
     };
-
-    const [open, setOpen] = React.useState(false);
-
-    const handleClick = () => {
-        setOpen(true);
-    };
+    const [open, setOpen] = useState<boolean>(false);
 
     const handleClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
         if (reason === 'clickaway') {
             return;
         }
-
         setOpen(false);
     };
 
@@ -141,8 +152,8 @@ const Home: NextPage = () => {
             if (publicKey) {
                 connection.getBalance(publicKey).then((bal) => {
                     const sol = {
-                        symbol: 'SOL',
-                        mintAddress: 'SOL',
+                        symbol: SOL,
+                        mintAddress: SOL,
                         uri: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
                         tokenBalance: bal / LAMPORTS_PER_SOL,
                         decimals: 9,
@@ -218,42 +229,116 @@ const Home: NextPage = () => {
         };
     }, [publicKey, connection]);
 
-    const onClick = async () => {
-        try {
-            if (!publicKey) throw new WalletNotConnectedError();
-            console.log(selectedToken);
-            // const balance = await connection.getBalance(publicKey);
-            // console.log(balance / LAMPORTS_PER_SOL);
+    useEffect(() => {
+        setOpen(true);
+        return () => {
+            setOpen(false);
+        };
+    }, [status]);
 
-            // const toPublicKey = new PublicKey('CfZmCPKN4nVYvViMgMg8UR5Fjw7KAfij4GnWS5KsuKvP');
-            // const transaction = new Transaction().add(
-            //     SystemProgram.transfer({
-            //         fromPubkey: publicKey,
-            //         toPubkey: toPublicKey,
-            //         lamports: 100000000, // 1 SOL = 1 billion lamports
-            //     })
-            // );
-            // const signature = await sendTransaction(transaction, connection);
-            // const latestBlockHash = await connection.getLatestBlockhash();
-            // await connection.confirmTransaction({
-            //     blockhash: latestBlockHash.blockhash,
-            //     lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-            //     signature: signature,
-            // });
-        } catch (error) {
-            console.error('Transaction failed:', error);
+    const onClick = async () => {
+        if (selectedToken.mintAddress === SOL) {
+            try {
+                if (!publicKey) throw new WalletNotConnectedError();
+                const balance = await connection.getBalance(publicKey);
+                console.log(balance / LAMPORTS_PER_SOL);
+                const toPublicKey = new PublicKey(walletAddress);
+                console.log(parseFloat(amount) * LAMPORTS_PER_SOL);
+                const transaction = new Transaction().add(
+                    SystemProgram.transfer({
+                        fromPubkey: publicKey,
+                        toPubkey: toPublicKey,
+                        lamports: parseFloat(amount) * LAMPORTS_PER_SOL, // 1 SOL = 1 billion lamports
+                    })
+                );
+                const signature = await sendTransaction(transaction, connection);
+                if (signature) {
+                    setStatus({
+                        status: 'success',
+                        severity: 'success',
+                        message: `Transaction sent with ID ${signature}!`,
+                    });
+                }
+                console.log('Transaction sent:', signature);
+                const latestBlockHash = await connection.getLatestBlockhash();
+                const confirmation = await connection.confirmTransaction({
+                    blockhash: latestBlockHash.blockhash,
+                    lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+                    signature: signature,
+                });
+                if (confirmation) {
+                    setStatus({
+                        status: 'success',
+                        severity: 'success',
+                        message: `Transaction confirmed for ID ${signature}!`,
+                    });
+                }
+            } catch (error) {
+                setStatus({
+                    status: 'error',
+                    severity: 'error',
+                    message: `Transaction failed!`,
+                });
+            }
+        } else {
+            //SPL TOKEN FUNCTIONALITY
+            try {
+                if (!publicKey) throw new WalletNotConnectedError();
+                let sourceAccount = await getOrCreateAssociatedTokenAccount(
+                    connection,
+                    Keypair.generate(),
+                    new PublicKey(selectedToken.mintAddress),
+                    publicKey
+                );
+                console.log(`Source Account: ${sourceAccount.address.toString()}`);
+
+                let destinationAccount;
+
+                try {
+                    let destinationAccount = await getOrCreateAssociatedTokenAccount(
+                        connection,
+                        Keypair.generate(),
+                        new PublicKey(selectedToken.mintAddress),
+                        new PublicKey(walletAddress)
+                    );
+                    console.log(`Destination Account: ${destinationAccount.address.toString()}`);
+                    //send transaction directly
+                } catch (error) {
+                    //else create destination account and then send transaction
+                    console.log(error);
+                    let ata = await getAssociatedTokenAddress(
+                        new PublicKey(selectedToken.mintAddress), // mint
+                        new PublicKey(walletAddress), // owner
+                        false // allow owner off curve
+                    );
+
+                    console.log(`ata: ${ata.toBase58()}`);
+                    const tx = new Transaction().add(
+                        createAssociatedTokenAccountInstruction(
+                            publicKey, // payer
+                            ata, // ata
+                            new PublicKey(walletAddress), // owner
+                            new PublicKey(selectedToken.mintAddress)
+                        )
+                    );
+                    console.log(`create ata txhash: ${await sendTransaction(tx, connection)}`);
+                    //create destination account and then send transaction
+                }
+            } catch (error) {
+                setStatus({
+                    status: 'error',
+                    severity: 'error',
+                    message: `Transaction failed!`,
+                });
+            }
         }
     };
-
-    const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(props, ref) {
-        return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
-    });
 
     return (
         <>
             <CssBaseline />
             <Head>
-                <title>SolSEND</title>
+                <title>SOLM8</title>
                 <meta name="description" content="send tokens over solana" />
                 <link rel="icon" href="/favicon.ico" />
             </Head>
@@ -262,12 +347,24 @@ const Home: NextPage = () => {
                 <Box>
                     <AppBar position="static">
                         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="h3" component="div">
-                                SolSEND
+                            <Typography
+                                sx={{
+                                    color: '#1E1E1E',
+                                    fontWeight: 'bold',
+                                    backgroundColor: '#48C1F6',
+                                    borderRadius: '5px',
+                                }}
+                                variant="h3"
+                                component="div"
+                            >
+                                SOLPAY
                             </Typography>
-                            <Typography variant="h6" component="div">
-                                (Use Devnet)
-                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <LanTwoToneIcon style={{ marginRight: '1rem' }} />
+                                <Typography sx={{}} variant="h6" component="div">
+                                    Devnet Only
+                                </Typography>
+                            </Box>
                             <WalletMultiButtonDynamic
                                 style={{
                                     backgroundColor: '#48C1F6',
@@ -295,8 +392,8 @@ const Home: NextPage = () => {
                                 style={{ marginBottom: '2rem' }}
                                 value={walletAddress}
                                 onChange={handleAddressChange}
-                                error={walletError}
-                                helperText={walletError ? 'Not a valid Solana address' : ''}
+                                error={walletError.length > 0}
+                                helperText={walletError}
                                 autoComplete="off"
                             />
 
@@ -325,7 +422,11 @@ const Home: NextPage = () => {
                                             value={account.mintAddress}
                                             style={{ fontSize: '1.2rem', fontWeight: 'bold' }}
                                         >
-                                            <Grid spacing={3} container alignItems="center" justify="space-between">
+                                            <Grid
+                                                spacing={3}
+                                                container
+                                                sx={{ alignItems: 'center', justify: 'space-between' }}
+                                            >
                                                 <Grid item xs={1}>
                                                     <Avatar src={account?.uri} alt="" />
                                                 </Grid>
@@ -363,10 +464,14 @@ const Home: NextPage = () => {
                             />
 
                             <Button
+                                onClick={(event: React.MouseEvent<HTMLButtonElement>) => onClick()}
                                 variant="contained"
                                 style={{ marginBottom: '2rem', fontSize: '1.2rem', fontWeight: 'bold' }}
                                 disabled={
-                                    walletError || amountError || !walletAddress.length || !selectedToken.mintAddress
+                                    (walletError ||
+                                        amountError ||
+                                        !walletAddress.length ||
+                                        !selectedToken.mintAddress) as boolean
                                 }
                             >
                                 Send Tokens
@@ -374,17 +479,14 @@ const Home: NextPage = () => {
                         </Box>
                         {/* <div className={hstyles.grid}></div> */}
                     </main>
-                    <Button variant="outlined" onClick={handleClick}>
-                        Open success snackbar
-                    </Button>
-                    <Snackbar open={open} autoHideDuration={1000} onClose={handleClose}>
+                    <Snackbar open={open} autoHideDuration={5000} onClose={handleClose}>
                         <div>
                             {status.status === 'error' && (
                                 <Alert
                                     variant="outlined"
                                     onClose={handleClose}
                                     severity={status.severity}
-                                    sx={{ width: '100%', fontSize: '1.2rem' }}
+                                    sx={{ width: '100%' }}
                                 >
                                     {status.message}
                                 </Alert>
@@ -394,7 +496,7 @@ const Home: NextPage = () => {
                                     variant="outlined"
                                     onClose={handleClose}
                                     severity={status.severity}
-                                    sx={{ width: '100%', fontSize: '1.2rem' }}
+                                    sx={{ width: '100%' }}
                                 >
                                     {status.message}
                                 </Alert>
@@ -404,7 +506,7 @@ const Home: NextPage = () => {
                                     variant="outlined"
                                     onClose={handleClose}
                                     severity={status.severity}
-                                    sx={{ width: '100%', fontSize: '1.2rem' }}
+                                    sx={{ width: '100%' }}
                                 >
                                     {status.message}
                                 </Alert>
@@ -414,7 +516,9 @@ const Home: NextPage = () => {
 
                     <footer className={hstyles.footer}>
                         <Typography color="white" variant="h6">
-                            https://github.com/aryan877
+                            <a href="https://github.com/aryan877" target="_blank" rel="noopener noreferrer">
+                                https://github.com/aryan877
+                            </a>
                         </Typography>
                     </footer>
                 </Box>
