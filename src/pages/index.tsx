@@ -82,6 +82,7 @@ const Home: NextPage = () => {
     const [amount, setAmount] = useState<string>('0');
     const [amountError, setAmountError] = useState<boolean>(false);
     const [selectedTokenChange, setSelectedTokenChange] = useState(false);
+    const [signature, setSignature] = useState<string>('');
 
     const handleChange = (event: SelectChangeEvent<string>, child: React.ReactNode) => {
         setSelectedTokenChange(true);
@@ -223,11 +224,10 @@ const Home: NextPage = () => {
             setTokenAccounts((prevTokenAccounts) => [...prevTokenAccounts, ...filteredAccounts]);
         }
         getTokenAccounts(publicKey.toString(), connection);
-
         return () => {
             setTokenAccounts([]);
         };
-    }, [publicKey, connection]);
+    }, [publicKey, connection, signature]);
 
     useEffect(() => {
         setOpen(true);
@@ -236,7 +236,7 @@ const Home: NextPage = () => {
         };
     }, [status]);
 
-    const onClick = async () => {
+    const Transact = async () => {
         if (selectedToken.mintAddress === SOL) {
             try {
                 if (!publicKey) throw new WalletNotConnectedError();
@@ -272,6 +272,7 @@ const Home: NextPage = () => {
                         severity: 'success',
                         message: `Transaction confirmed for ID ${signature}!`,
                     });
+                    setSignature(signature);
                 }
             } catch (error) {
                 setStatus({
@@ -464,7 +465,7 @@ const Home: NextPage = () => {
                             />
 
                             <Button
-                                onClick={(event: React.MouseEvent<HTMLButtonElement>) => onClick()}
+                                onClick={(event: React.MouseEvent<HTMLButtonElement>) => Transact()}
                                 variant="contained"
                                 style={{ marginBottom: '2rem', fontSize: '1.2rem', fontWeight: 'bold' }}
                                 disabled={
