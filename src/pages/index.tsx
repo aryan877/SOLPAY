@@ -127,13 +127,13 @@ const Home: NextPage = () => {
         };
     }, [status]);
 
-    useEffect(() => {
-        if (publicKey && publicKey.toBase58() === walletAddress) {
-            setWalletError('Cannot send to the same wallet');
-        } else {
-            setWalletError('');
-        }
-    }, [publicKey, walletAddress]);
+    // useEffect(() => {
+    //     if (publicKey && publicKey.toBase58() === walletAddress) {
+    //         setWalletError('Cannot send to the same wallet');
+    //     } else {
+    //         setWalletError('');
+    //     }
+    // }, [publicKey, walletAddress]);
 
     useEffect(() => {
         if (!publicKey) return;
