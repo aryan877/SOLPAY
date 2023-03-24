@@ -17,6 +17,7 @@ import {
     createTransferInstruction,
     getAssociatedTokenAddress,
     getOrCreateAssociatedTokenAccount,
+    TokenAccountNotFoundError,
     TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import { Strategy, TokenInfo, TokenInfoMap, TokenListContainer, TokenListProvider } from '@solana/spl-token-registry';
@@ -83,32 +84,10 @@ const Home: NextPage = () => {
     const [amountError, setAmountError] = useState<boolean>(false);
     const [selectedTokenChange, setSelectedTokenChange] = useState(false);
     const [signature, setSignature] = useState<string>('');
+    const [open, setOpen] = useState<boolean>(false);
 
-    const handleChange = (event: SelectChangeEvent<string>, child: React.ReactNode) => {
-        setSelectedTokenChange(true);
-        setSelectedOption(event.target.value as string);
-        const token = tokenAccounts.find((token) => token.mintAddress === event.target.value);
-        setSelectedToken(token || { mintAddress: '', symbol: '', tokenBalance: 0, uri: '', decimals: 9 });
-    };
-
-    const handleAmountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const inputAmount = event.target.value.trim();
-        if (!inputAmount) {
-            setAmountError(true);
-            setAmount(inputAmount);
-        } else if (!/^(?!0$)\d*(\.\d+)?$/.test(inputAmount)) {
-            setAmountError(true);
-            setAmount(inputAmount);
-        } else {
-            const amount = parseFloat(inputAmount);
-            if (selectedToken.mintAddress && amount > selectedToken.tokenBalance) {
-                setAmountError(true);
-            } else {
-                setAmountError(false);
-            }
-            setAmount(inputAmount);
-        }
-    };
+    const { publicKey, sendTransaction } = useWallet();
+    const { connection } = useConnection();
 
     useEffect(() => {
         if (!selectedTokenChange) return;
@@ -118,34 +97,20 @@ const Home: NextPage = () => {
         setSelectedTokenChange(false);
     }, [selectedToken, amount, selectedTokenChange]);
 
-    const { connection } = useConnection();
-    // const connection = new Connection(clusterApiUrl("devnet"))
-    const handleAddressChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const address = event.target.value.trim();
-        setWalletAddress(address);
-        try {
-            new PublicKey(address);
-            setWalletError('');
-        } catch {
-            // Set error state only if input length is not zero
-            setWalletError(address.length > 0 ? 'Invalid wallet address' : '');
-        }
+    useEffect(() => {
+        setOpen(true);
+        return () => {
+            setOpen(false);
+        };
+    }, [status]);
 
-        // Check if address matches publicKey
-        if (publicKey && publicKey.toBase58() === address) {
+    useEffect(() => {
+        if (publicKey && publicKey.toBase58() === walletAddress) {
             setWalletError('Cannot send to the same wallet');
+        } else {
+            setWalletError('');
         }
-    };
-    const [open, setOpen] = useState<boolean>(false);
-
-    const handleClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
-        if (reason === 'clickaway') {
-            return;
-        }
-        setOpen(false);
-    };
-
-    const { publicKey, sendTransaction } = useWallet();
+    }, [publicKey, walletAddress]);
 
     useEffect(() => {
         if (!publicKey) return;
@@ -229,14 +194,86 @@ const Home: NextPage = () => {
         };
     }, [publicKey, connection, signature]);
 
-    useEffect(() => {
-        setOpen(true);
-        return () => {
-            setOpen(false);
-        };
-    }, [status]);
+    const handleChange = (event: SelectChangeEvent<string>, child: React.ReactNode) => {
+        setSelectedTokenChange(true);
+        setSelectedOption(event.target.value as string);
+        const token = tokenAccounts.find((token) => token.mintAddress === event.target.value);
+        setSelectedToken(token || { mintAddress: '', symbol: '', tokenBalance: 0, uri: '', decimals: 9 });
+    };
+
+    const handleAmountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const inputAmount = event.target.value.trim();
+        if (!inputAmount) {
+            setAmountError(true);
+            setAmount(inputAmount);
+        } else if (!/^(?!0$)\d*(\.\d+)?$/.test(inputAmount)) {
+            setAmountError(true);
+            setAmount(inputAmount);
+        } else {
+            const amount = parseFloat(inputAmount);
+            if (selectedToken.mintAddress && amount > selectedToken.tokenBalance) {
+                setAmountError(true);
+            } else {
+                setAmountError(false);
+            }
+            setAmount(inputAmount);
+        }
+    };
+
+    // const connection = new Connection(clusterApiUrl("devnet"))
+    const handleAddressChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const address = event.target.value.trim();
+        setWalletAddress(address);
+        try {
+            new PublicKey(address);
+            setWalletError('');
+        } catch {
+            // Set error state only if input length is not zero
+            setWalletError(address.length > 0 ? 'Invalid wallet address' : '');
+        }
+
+        // Check if address matches publicKey
+        if (publicKey && publicKey.toBase58() === address) {
+            setWalletError('Cannot send to the same wallet');
+        }
+    };
+
+    const handleClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setOpen(false);
+    };
+
+    const sendAndConfirmTransaction = async (transaction: any, connection: any) => {
+        try {
+            const signature = await sendTransaction(transaction, connection);
+            console.log('Transaction sent:', signature);
+            const latestBlockHash = await connection.getLatestBlockhash();
+            const confirmation = await connection.confirmTransaction({
+                blockhash: latestBlockHash.blockhash,
+                lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+                signature: signature,
+            });
+            if (confirmation) {
+                setStatus({
+                    status: 'success',
+                    severity: 'success',
+                    message: `Transaction confirmed for ID ${signature}!`,
+                });
+                setSignature(signature);
+            }
+        } catch (error) {
+            setStatus({
+                status: 'error',
+                severity: 'error',
+                message: `Transaction failed!`,
+            });
+        }
+    };
 
     const Transact = async () => {
+        //Transaction For SOL Native Token
         if (selectedToken.mintAddress === SOL) {
             try {
                 if (!publicKey) throw new WalletNotConnectedError();
@@ -251,29 +288,7 @@ const Home: NextPage = () => {
                         lamports: parseFloat(amount) * LAMPORTS_PER_SOL, // 1 SOL = 1 billion lamports
                     })
                 );
-                const signature = await sendTransaction(transaction, connection);
-                if (signature) {
-                    setStatus({
-                        status: 'success',
-                        severity: 'success',
-                        message: `Transaction sent with ID ${signature}!`,
-                    });
-                }
-                console.log('Transaction sent:', signature);
-                const latestBlockHash = await connection.getLatestBlockhash();
-                const confirmation = await connection.confirmTransaction({
-                    blockhash: latestBlockHash.blockhash,
-                    lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-                    signature: signature,
-                });
-                if (confirmation) {
-                    setStatus({
-                        status: 'success',
-                        severity: 'success',
-                        message: `Transaction confirmed for ID ${signature}!`,
-                    });
-                    setSignature(signature);
-                }
+                await sendAndConfirmTransaction(transaction, connection);
             } catch (error) {
                 setStatus({
                     status: 'error',
@@ -282,7 +297,7 @@ const Home: NextPage = () => {
                 });
             }
         } else {
-            //SPL TOKEN FUNCTIONALITY
+            //Transaction For SPL-Token
             try {
                 if (!publicKey) throw new WalletNotConnectedError();
                 let sourceAccount = await getOrCreateAssociatedTokenAccount(
@@ -292,9 +307,6 @@ const Home: NextPage = () => {
                     publicKey
                 );
                 console.log(`Source Account: ${sourceAccount.address.toString()}`);
-
-                let destinationAccount;
-
                 try {
                     let destinationAccount = await getOrCreateAssociatedTokenAccount(
                         connection,
@@ -303,27 +315,54 @@ const Home: NextPage = () => {
                         new PublicKey(walletAddress)
                     );
                     console.log(`Destination Account: ${destinationAccount.address.toString()}`);
-                    //send transaction directly
-                } catch (error) {
-                    //else create destination account and then send transaction
-                    console.log(error);
-                    let ata = await getAssociatedTokenAddress(
-                        new PublicKey(selectedToken.mintAddress), // mint
-                        new PublicKey(walletAddress), // owner
-                        false // allow owner off curve
-                    );
-
-                    console.log(`ata: ${ata.toBase58()}`);
-                    const tx = new Transaction().add(
-                        createAssociatedTokenAccountInstruction(
-                            publicKey, // payer
-                            ata, // ata
-                            new PublicKey(walletAddress), // owner
-                            new PublicKey(selectedToken.mintAddress)
+                    //send transaction directly now
+                    const transaction = new Transaction();
+                    transaction.add(
+                        createTransferInstruction(
+                            sourceAccount.address,
+                            destinationAccount.address,
+                            publicKey,
+                            parseFloat(amount) * Math.pow(10, selectedToken.decimals)
                         )
                     );
-                    console.log(`create ata txhash: ${await sendTransaction(tx, connection)}`);
-                    //create destination account and then send transaction
+                    await sendAndConfirmTransaction(transaction, connection);
+                } catch (error) {
+                    //else create destination account and then send transaction
+                    if (error instanceof TokenAccountNotFoundError) {
+                        let ata = await getAssociatedTokenAddress(
+                            new PublicKey(selectedToken.mintAddress), // mint
+                            new PublicKey(walletAddress), // owner
+                            false // allow owner off curve
+                        );
+                        console.log(`ata: ${ata.toBase58()}`);
+                        const tx = new Transaction().add(
+                            createAssociatedTokenAccountInstruction(
+                                publicKey, // payer
+                                ata, // ata
+                                new PublicKey(walletAddress), // owner
+                                new PublicKey(selectedToken.mintAddress)
+                            )
+                        );
+                        console.log(`create ata txhash: ${await sendTransaction(tx, connection)}`);
+                        //create destination account and then send transaction
+                        let destinationAccount = await getOrCreateAssociatedTokenAccount(
+                            connection,
+                            Keypair.generate(),
+                            new PublicKey(selectedToken.mintAddress),
+                            new PublicKey(walletAddress)
+                        );
+                        console.log(`Destination Account: ${destinationAccount.address.toString()}`);
+                        const transaction = new Transaction();
+                        transaction.add(
+                            createTransferInstruction(
+                                sourceAccount.address,
+                                destinationAccount.address,
+                                publicKey,
+                                parseFloat(amount) * Math.pow(10, selectedToken.decimals)
+                            )
+                        );
+                        await sendAndConfirmTransaction(transaction, connection);
+                    }
                 }
             } catch (error) {
                 setStatus({
@@ -482,7 +521,7 @@ const Home: NextPage = () => {
                     </main>
                     <Snackbar open={open} autoHideDuration={5000} onClose={handleClose}>
                         <div>
-                            {status.status === 'error' && (
+                            {status.status === 'error' && status.message && (
                                 <Alert
                                     variant="outlined"
                                     onClose={handleClose}
@@ -492,7 +531,7 @@ const Home: NextPage = () => {
                                     {status.message}
                                 </Alert>
                             )}
-                            {status.status === 'success' && (
+                            {status.status === 'success' && status.message && (
                                 <Alert
                                     variant="outlined"
                                     onClose={handleClose}
@@ -502,7 +541,7 @@ const Home: NextPage = () => {
                                     {status.message}
                                 </Alert>
                             )}
-                            {status.status === 'pending' && (
+                            {status.status === 'pending' && status.message && (
                                 <Alert
                                     variant="outlined"
                                     onClose={handleClose}
