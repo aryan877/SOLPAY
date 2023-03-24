@@ -1,5 +1,6 @@
-import { Avatar, FormControl, InputLabel, ListItemIcon, MenuItem, Select } from '@mui/material';
+import { Avatar, FormControl, Grid, InputLabel, MenuItem, Select } from '@mui/material';
 import AppBar from '@mui/material/AppBar';
+import { Metadata } from '@metaplex-foundation/mpl-token-metadata';
 import { default as Box } from '@mui/material/Box';
 import { default as Button } from '@mui/material/Button';
 import Container from '@mui/material/Container';
@@ -39,18 +40,59 @@ interface TokenAccount {
     mintAddress: string;
     tokenBalance: number;
     decimals: number;
+    uri: string;
+    symbol: string;
 }
 
 const Home: NextPage = () => {
-    let [lamports, setLamports] = useState(0.1);
-    const [walletAddress, setWalletAddress] = useState('');
-    const [error, setError] = useState(false);
+    const [walletAddress, setWalletAddress] = useState<string>('');
+    const [walletError, setWalletError] = useState<boolean>(false);
     const [tokenAccounts, setTokenAccounts] = useState<TokenAccount[]>([]);
-    const [selectedOption, setSelectedOption] = useState('');
+    const [selectedOption, setSelectedOption] = useState<string>('');
+    const [selectedToken, setSelectedToken] = useState<TokenAccount>({
+        mintAddress: '',
+        symbol: '',
+        tokenBalance: 0,
+        uri: '',
+        decimals: 9,
+    });
+    const [amount, setAmount] = useState<number>(0);
+    const [amountError, setAmountError] = useState<boolean>(false);
+    const [selectedTokenChange, setSelectedTokenChange] = useState(false);
 
-    const handleChange = (event: any) => {
+    const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedTokenChange(true);
         setSelectedOption(event.target.value);
+        const token = tokenAccounts.find((token) => token.mintAddress === event.target.value);
+        setSelectedToken(token || { mintAddress: '', symbol: '', tokenBalance: 0, uri: '', decimals: 9 });
     };
+
+    const handleAmountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const inputAmount = event.target.value.trim();
+        if (!inputAmount) {
+            setAmountError(true);
+            setAmount(inputAmount);
+        } else if (!/^(?!0$)\d*(\.\d+)?$/.test(inputAmount)) {
+            setAmountError(true);
+            setAmount(inputAmount);
+        } else {
+            const amount = parseFloat(inputAmount);
+            if (selectedToken.mintAddress && amount > selectedToken.tokenBalance) {
+                setAmountError(true);
+            } else {
+                setAmountError(false);
+            }
+            setAmount(inputAmount);
+        }
+    };
+
+    useEffect(() => {
+        if (!selectedTokenChange) return;
+        if (!selectedToken.mintAddress) return;
+        const isAmountLessThanBalance = amount > 0 && parseFloat(amount) <= selectedToken.tokenBalance;
+        setAmountError(!isAmountLessThanBalance);
+        setSelectedTokenChange(false);
+    }, [selectedToken, amount, selectedTokenChange]);
 
     const { connection } = useConnection();
     // const connection = new Connection(clusterApiUrl("devnet"))
@@ -59,12 +101,13 @@ const Home: NextPage = () => {
         setWalletAddress(address);
         try {
             new PublicKey(address);
-            setError(false);
+            setWalletError(false);
         } catch {
             // Set error state only if input length is not zero
-            setError(address.length > 0);
+            setWalletError(address.length > 0);
         }
     };
+
     const { publicKey, sendTransaction } = useWallet();
 
     useEffect(() => {
@@ -72,8 +115,14 @@ const Home: NextPage = () => {
         async function getTokenAccounts(wallet: string, connection: Connection) {
             if (publicKey) {
                 connection.getBalance(publicKey).then((bal) => {
-                    const solBalance = { mintAddress: 'SOL', tokenBalance: bal / LAMPORTS_PER_SOL, decimals: 9 };
-                    setTokenAccounts([solBalance]);
+                    const sol = {
+                        symbol: 'SOL',
+                        mintAddress: 'SOL',
+                        uri: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+                        tokenBalance: bal / LAMPORTS_PER_SOL,
+                        decimals: 9,
+                    };
+                    setTokenAccounts((prevTokenAccounts) => [...prevTokenAccounts, sol]);
                 });
             }
             const provider = new TokenListProvider();
@@ -94,7 +143,6 @@ const Home: NextPage = () => {
                 TOKEN_PROGRAM_ID, //new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
                 { filters: filters }
             );
-            console.log(accounts);
             const parsedAccounts = await Promise.all(
                 accounts.map(async (account) => {
                     try {
@@ -102,26 +150,34 @@ const Home: NextPage = () => {
                         const mintAddress: string = parsedAccountInfo['parsed']['info']['mint'];
                         const tokenBalance: number = parsedAccountInfo['parsed']['info']['tokenAmount']['uiAmount'];
                         const decimals: number = parsedAccountInfo['parsed']['info']['tokenAmount']['decimals'];
-                        // const data = await connection.getAccountInfo(new PublicKey(mintAddress));
-                        // console.log(data);
-                        // console.log(data);
+                        let entry = {};
 
                         const tokenInfo: TokenInfo | undefined = tokenList
                             .filterByClusterSlug('devnet')
                             .getList()
                             .find((info: TokenInfo) => info.address === mintAddress);
 
+                        entry = { ...entry, mintAddress, tokenBalance, decimals };
+
                         if (tokenInfo) {
-                            console.log(tokenInfo);
+                            entry = { ...entry, uri: tokenInfo?.logoURI, symbol: tokenInfo?.symbol };
                         } else {
-                            console.log('Token info not found');
+                            let mintPubkey = new PublicKey(mintAddress);
+                            try {
+                                let tokenmetaPubkey = await Metadata.getPDA(mintPubkey);
+                                const tokenmeta = await Metadata.load(connection, tokenmetaPubkey);
+                                const uri = await axios.get(tokenmeta.data?.data?.uri);
+                                entry = {
+                                    ...entry,
+                                    symbol: tokenmeta.data?.data?.symbol,
+                                    uri: uri.data.image,
+                                };
+                            } catch (error) {
+                                entry = { ...entry, uri: '', symbol: mintAddress };
+                            }
                         }
 
-                        return {
-                            mintAddress,
-                            tokenBalance,
-                            decimals,
-                        };
+                        return entry;
                     } catch (error) {
                         console.error(error);
                     }
@@ -131,41 +187,40 @@ const Home: NextPage = () => {
             setTokenAccounts((prevTokenAccounts) => [...prevTokenAccounts, ...filteredAccounts]);
         }
         getTokenAccounts(publicKey.toString(), connection);
+
+        return () => {
+            setTokenAccounts([]);
+        };
     }, [publicKey, connection]);
 
-    useEffect(() => {
-        console.log(tokenAccounts);
-    }, [tokenAccounts]);
-
-    const onClick = useCallback(async () => {
+    const onClick = async () => {
         try {
             if (!publicKey) throw new WalletNotConnectedError();
+            console.log(selectedToken);
+            // const balance = await connection.getBalance(publicKey);
+            // console.log(balance / LAMPORTS_PER_SOL);
 
-            const balance = await connection.getBalance(publicKey);
-            console.log(balance / LAMPORTS_PER_SOL);
-
-            const toPublicKey = new PublicKey('CfZmCPKN4nVYvViMgMg8UR5Fjw7KAfij4GnWS5KsuKvP');
-            const transaction = new Transaction().add(
-                SystemProgram.transfer({
-                    fromPubkey: publicKey,
-                    toPubkey: toPublicKey,
-                    lamports: 100000000, // 1 SOL = 1 billion lamports
-                })
-            );
-            const signature = await sendTransaction(transaction, connection);
-            console.log(signature);
-            const latestBlockHash = await connection.getLatestBlockhash();
-            await connection.confirmTransaction({
-                blockhash: latestBlockHash.blockhash,
-                lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-                signature: signature,
-            });
+            // const toPublicKey = new PublicKey('CfZmCPKN4nVYvViMgMg8UR5Fjw7KAfij4GnWS5KsuKvP');
+            // const transaction = new Transaction().add(
+            //     SystemProgram.transfer({
+            //         fromPubkey: publicKey,
+            //         toPubkey: toPublicKey,
+            //         lamports: 100000000, // 1 SOL = 1 billion lamports
+            //     })
+            // );
+            // const signature = await sendTransaction(transaction, connection);
+            // const latestBlockHash = await connection.getLatestBlockhash();
+            // await connection.confirmTransaction({
+            //     blockhash: latestBlockHash.blockhash,
+            //     lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+            //     signature: signature,
+            // });
         } catch (error) {
             // Handle errors here
             console.error('Transaction failed:', error);
             // You can also display an error message on your React page using state or a library like React Toastify
         }
-    }, [connection, publicKey, sendTransaction]);
+    };
 
     return (
         <>
@@ -182,6 +237,9 @@ const Home: NextPage = () => {
                         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="h3" component="div">
                                 SolSEND
+                            </Typography>
+                            <Typography variant="h6" component="div">
+                                (Use Devnet)
                             </Typography>
                             {/* <Button variant="contained">Button</Button> */}
                             {/* <div className={hstyles.walletButtons}> */}
@@ -212,8 +270,8 @@ const Home: NextPage = () => {
                                 style={{ marginBottom: '2rem' }}
                                 value={walletAddress}
                                 onChange={handleAddressChange}
-                                error={error}
-                                helperText={error ? 'Not a valid Solana address' : ''}
+                                error={walletError}
+                                helperText={walletError ? 'Not a valid Solana address' : ''}
                                 autoComplete="off"
                             />
 
@@ -227,6 +285,7 @@ const Home: NextPage = () => {
                                 >
                                     Pick Token
                                 </InputLabel>
+
                                 <Select
                                     labelId="demo-simple-select-label"
                                     id="demo-simple-select"
@@ -241,15 +300,24 @@ const Home: NextPage = () => {
                                             value={account.mintAddress}
                                             style={{ fontSize: '1.2rem', fontWeight: 'bold' }}
                                         >
-                                            <ListItemIcon>
-                                                <Avatar
-                                                    src={
-                                                        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU/logo.png'
-                                                    }
-                                                    alt={''}
-                                                />
-                                            </ListItemIcon>
-                                            {`${account.mintAddress} - ${account.tokenBalance}`}
+                                            <Grid spacing={3} container alignItems="center" justify="space-between">
+                                                <Grid item xs={1}>
+                                                    <Avatar src={account?.uri} alt="" />
+                                                </Grid>
+                                                <Grid item xs={1}>
+                                                    <Typography variant="h6" align="right">
+                                                        {account?.symbol.length > 16
+                                                            ? account?.symbol.slice(0, 16) + '....'
+                                                            : account?.symbol}
+                                                    </Typography>
+                                                </Grid>
+                                                <Grid item xs>
+                                                    <Typography variant="h6" align="right">
+                                                        {account?.tokenBalance}
+                                                    </Typography>
+                                                </Grid>
+                                            </Grid>
+                                            {/* {`${account.mintAddress} - ${account.tokenBalance}`} */}
                                         </MenuItem>
                                     ))}
                                 </Select>
@@ -263,12 +331,19 @@ const Home: NextPage = () => {
                                 InputProps={{ style: { fontSize: '1.2rem', fontWeight: 'bold' } }}
                                 InputLabelProps={{ style: { fontSize: '1.2rem', fontWeight: 'bold' } }}
                                 style={{ marginBottom: '2rem' }}
+                                value={amount}
+                                onChange={handleAmountChange}
+                                error={amountError}
+                                helperText={amountError ? 'Invalid Input' : ''}
                                 autoComplete="off"
                             />
 
                             <Button
                                 variant="contained"
                                 style={{ marginBottom: '2rem', fontSize: '1.2rem', fontWeight: 'bold' }}
+                                disabled={
+                                    walletError || amountError || !walletAddress.length || !selectedToken.mintAddress
+                                }
                             >
                                 Send Tokens
                             </Button>
