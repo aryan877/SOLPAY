@@ -1,7 +1,18 @@
 import { Metadata } from '@metaplex-foundation/mpl-token-metadata';
 import CodeIcon from '@mui/icons-material/Code';
 import LanTwoToneIcon from '@mui/icons-material/LanTwoTone';
-import { Avatar, FormControl, Grid, InputLabel, MenuItem, Select, SelectChangeEvent } from '@mui/material';
+import {
+    Avatar,
+    Backdrop,
+    Fade,
+    FormControl,
+    Grid,
+    InputLabel,
+    MenuItem,
+    Modal,
+    Select,
+    SelectChangeEvent,
+} from '@mui/material';
 import MuiAlert, { AlertProps } from '@mui/material/Alert';
 import AppBar from '@mui/material/AppBar';
 import { default as Box } from '@mui/material/Box';
@@ -61,6 +72,18 @@ type StatusType = {
     severity: SeverityType;
     status: 'pending' | 'success' | 'error';
     message: string;
+};
+
+const style = {
+    position: 'absolute' as 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 400,
+    bgcolor: 'background.paper',
+    border: '2px solid #000',
+    boxShadow: 24,
+    p: 4,
 };
 
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(props, ref) {
@@ -245,6 +268,62 @@ const Home: NextPage = () => {
         setOpen(false);
     };
 
+    function confirmAction() {
+        return new Promise((resolve, reject) => {
+            const modalRoot = document.createElement('div');
+            modalRoot.style.cssText =
+                'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: flex; justify-content: center; align-items: center; background-color: rgba(0, 0, 0, 0.5);';
+
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText =
+                'background-color: #212121; padding: 24px; border-radius: 8px; width: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);';
+
+            const message = document.createElement('p');
+            message.style.cssText = 'color: #FF0000; margin: 0 0 16px 0; font-size: 1.2rem;';
+            message.textContent =
+                'The recipient wallet address does not have an account for this token. Would you like to create it for them?';
+
+            const buttonWrapper = document.createElement('div');
+            buttonWrapper.style.cssText = 'display: flex; justify-content: flex-end;';
+
+            const confirmButton = document.createElement('button');
+            confirmButton.style.cssText =
+                'background-color: #48C1F7; color: #1E1E1E; padding: 12px 24px; border-radius: 8px; margin-right: 16px; cursor: pointer; font-size: 1.2rem; border: none; outline: none;';
+            confirmButton.textContent = 'Yes';
+
+            const cancelButton = document.createElement('button');
+            cancelButton.style.cssText =
+                'background-color: #48C1F7; color: #1E1E1E; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1.2rem; border: none; outline: none;';
+            cancelButton.textContent = 'No';
+
+            modalRoot.addEventListener('click', () => {
+                reject('Action cancelled.');
+                document.body.removeChild(modalRoot);
+            });
+
+            modalContent.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            confirmButton.addEventListener('click', () => {
+                resolve(true);
+                document.body.removeChild(modalRoot);
+            });
+
+            cancelButton.addEventListener('click', () => {
+                reject('Action cancelled.');
+                document.body.removeChild(modalRoot);
+            });
+
+            modalContent.appendChild(message);
+            buttonWrapper.appendChild(confirmButton);
+            buttonWrapper.appendChild(cancelButton);
+            modalContent.appendChild(buttonWrapper);
+            modalRoot.appendChild(modalContent);
+            document.body.appendChild(modalRoot);
+        });
+    }
+
     const sendAndConfirmTransaction = async (transaction: any, connection: any) => {
         try {
             const signature = await sendTransaction(transaction, connection);
@@ -332,6 +411,10 @@ const Home: NextPage = () => {
                     );
                     await sendAndConfirmTransaction(transaction, connection);
                 } catch (error) {
+                    const userConfirmed = await confirmAction();
+                    if (!userConfirmed) {
+                        throw error;
+                    }
                     //else create destination account and then send transaction
                     if (error instanceof TokenAccountNotFoundError) {
                         let ata = await getAssociatedTokenAddress(
