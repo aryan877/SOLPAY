@@ -8,6 +8,8 @@ import CssBaseline from '@mui/material/CssBaseline';
 import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
 import Toolbar from '@mui/material/Toolbar';
+import Snackbar from '@mui/material/Snackbar';
+import MuiAlert, { AlertProps } from '@mui/material/Alert';
 import { default as Typography } from '@mui/material/Typography';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { Strategy, TokenInfo, TokenInfoMap, TokenListContainer, TokenListProvider } from '@solana/spl-token-registry';
@@ -44,7 +46,16 @@ interface TokenAccount {
     symbol: string;
 }
 
+type SeverityType = 'error' | 'success' | 'info';
+
+type StatusType = {
+    severity: SeverityType;
+    status: 'pending' | 'success' | 'error';
+    message: string;
+};
+
 const Home: NextPage = () => {
+    const [status, setStatus] = useState<StatusType>({ severity: '', status: '', message: '' });
     const [walletAddress, setWalletAddress] = useState<string>('');
     const [walletError, setWalletError] = useState<boolean>(false);
     const [tokenAccounts, setTokenAccounts] = useState<TokenAccount[]>([]);
@@ -106,6 +117,20 @@ const Home: NextPage = () => {
             // Set error state only if input length is not zero
             setWalletError(address.length > 0);
         }
+    };
+
+    const [open, setOpen] = React.useState(false);
+
+    const handleClick = () => {
+        setOpen(true);
+    };
+
+    const handleClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+
+        setOpen(false);
     };
 
     const { publicKey, sendTransaction } = useWallet();
@@ -216,11 +241,13 @@ const Home: NextPage = () => {
             //     signature: signature,
             // });
         } catch (error) {
-            // Handle errors here
             console.error('Transaction failed:', error);
-            // You can also display an error message on your React page using state or a library like React Toastify
         }
     };
+
+    const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(props, ref) {
+        return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
+    });
 
     return (
         <>
@@ -241,8 +268,6 @@ const Home: NextPage = () => {
                             <Typography variant="h6" component="div">
                                 (Use Devnet)
                             </Typography>
-                            {/* <Button variant="contained">Button</Button> */}
-                            {/* <div className={hstyles.walletButtons}> */}
                             <WalletMultiButtonDynamic
                                 style={{
                                     backgroundColor: '#48C1F6',
@@ -317,7 +342,6 @@ const Home: NextPage = () => {
                                                     </Typography>
                                                 </Grid>
                                             </Grid>
-                                            {/* {`${account.mintAddress} - ${account.tokenBalance}`} */}
                                         </MenuItem>
                                     ))}
                                 </Select>
@@ -350,6 +374,43 @@ const Home: NextPage = () => {
                         </Box>
                         {/* <div className={hstyles.grid}></div> */}
                     </main>
+                    <Button variant="outlined" onClick={handleClick}>
+                        Open success snackbar
+                    </Button>
+                    <Snackbar open={open} autoHideDuration={1000} onClose={handleClose}>
+                        <div>
+                            {status.status === 'error' && (
+                                <Alert
+                                    variant="outlined"
+                                    onClose={handleClose}
+                                    severity={status.severity}
+                                    sx={{ width: '100%', fontSize: '1.2rem' }}
+                                >
+                                    {status.message}
+                                </Alert>
+                            )}
+                            {status.status === 'success' && (
+                                <Alert
+                                    variant="outlined"
+                                    onClose={handleClose}
+                                    severity={status.severity}
+                                    sx={{ width: '100%', fontSize: '1.2rem' }}
+                                >
+                                    {status.message}
+                                </Alert>
+                            )}
+                            {status.status === 'pending' && (
+                                <Alert
+                                    variant="outlined"
+                                    onClose={handleClose}
+                                    severity={status.severity}
+                                    sx={{ width: '100%', fontSize: '1.2rem' }}
+                                >
+                                    {status.message}
+                                </Alert>
+                            )}
+                        </div>
+                    </Snackbar>
 
                     <footer className={hstyles.footer}>
                         <Typography color="white" variant="h6">
