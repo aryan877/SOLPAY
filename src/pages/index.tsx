@@ -383,11 +383,10 @@ const Home: NextPage = () => {
         <>
             <CssBaseline />
             <Head>
-                <title>SOLM8</title>
+                <title>SOLPAY</title>
                 <meta name="description" content="send tokens over solana" />
                 <link rel="icon" href="/favicon.ico" />
             </Head>
-
             <Container>
                 <Box>
                     <AppBar position="static">
