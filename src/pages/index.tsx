@@ -609,6 +609,21 @@ const Home: NextPage = () => {
                                 Send Tokens
                             </Button>
                         </Box>
+                        <Typography variant="h6" align="left" mt={'2rem'}>
+                            To use the app, please follow these simple steps:
+                            <br />
+                            <br />
+                            1. Install any Solana wallet, such as Phantom or Solflare.
+                            <br />
+                            <br />
+                            2. Change your wallet network to the Devnet network.
+                            <br />
+                            <br />
+                            3. Click the Connect Wallet button to connect the app to your wallet.
+                            <br />
+                            <br />
+                            4. Start using the app to send tokens.
+                        </Typography>
                         {/* <div className={hstyles.grid}></div> */}
                     </main>
                     <Snackbar open={open} autoHideDuration={2000} onClose={handleClose}>
