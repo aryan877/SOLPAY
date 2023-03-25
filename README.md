@@ -1,3 +1,5 @@
+Web app live at: https://sol-send.vercel.app/
+
 # SolPay
 
 ## Overview
