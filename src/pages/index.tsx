@@ -630,7 +630,7 @@ const Home: NextPage = () => {
                         <div>
                             {status.status === 'error' && status.message && (
                                 <Alert
-                                    variant="outlined"
+                                    variant="filled"
                                     onClose={handleClose}
                                     severity={status.severity}
                                     sx={{ width: '100%' }}
@@ -640,7 +640,7 @@ const Home: NextPage = () => {
                             )}
                             {status.status === 'success' && status.message && (
                                 <Alert
-                                    variant="outlined"
+                                    variant="filled"
                                     onClose={handleClose}
                                     severity={status.severity}
                                     sx={{ width: '100%' }}
@@ -650,7 +650,7 @@ const Home: NextPage = () => {
                             )}
                             {status.status === 'pending' && status.message && (
                                 <Alert
-                                    variant="outlined"
+                                    variant="filled"
                                     onClose={handleClose}
                                     severity={status.severity}
                                     sx={{ width: '100%' }}
