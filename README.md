@@ -1,8 +1,8 @@
-# Solana Token Sender
+# SolPay
 
 ## Overview
 
-Solana Token Sender is a web application that allows users to send Solana tokens from one wallet to another. The app connects to the Solana blockchain and uses a Solana wallet to facilitate the transactions.
+SolPay is a Next.js client application that allows users to send Solana tokens from one wallet to another. The app connects to the Solana blockchain and uses a Solana wallet to facilitate the transactions.
 
 ## Getting Started
 
