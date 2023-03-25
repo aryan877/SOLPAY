@@ -414,12 +414,12 @@ const Home: NextPage = () => {
                     );
                     await sendAndConfirmTransaction(transaction, connection);
                 } catch (error) {
-                    const userConfirmed = await confirmAction();
-                    if (!userConfirmed) {
-                        throw error;
-                    }
                     //else create destination account and then send transaction
                     if (error instanceof TokenAccountNotFoundError) {
+                        const userConfirmed = await confirmAction();
+                        if (!userConfirmed) {
+                            throw error;
+                        }
                         let ata = await getAssociatedTokenAddress(
                             new PublicKey(selectedToken.mintAddress), // mint
                             new PublicKey(walletAddress), // owner
@@ -434,7 +434,7 @@ const Home: NextPage = () => {
                                 new PublicKey(selectedToken.mintAddress)
                             )
                         );
-                        console.log(`create ata txhash: ${await sendTransaction(tx, connection)}`);
+                        console.log(`create ata txhash: ${await sendAndConfirmTransaction(tx, connection)}`);
                         //create destination account and then send transaction
                         let destinationAccount = await getOrCreateAssociatedTokenAccount(
                             connection,
